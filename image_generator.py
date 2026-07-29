@@ -1,5 +1,6 @@
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 from io import BytesIO
+import math
 import aiohttp
 import colorgram
 import os
@@ -262,23 +263,49 @@ async def create_welcome_card(member):
 
     background.alpha_composite(highlight)
 
-    # ==========================================
-    # SAVE IMAGE
-    # ==========================================
+# ==========================================
+# SAVE IMAGE
+# ==========================================
 
-    os.makedirs(
-        OUTPUT_FOLDER,
-        exist_ok=True
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+output = os.path.join(
+    OUTPUT_FOLDER,
+    f"{member.id}.gif"
+)
+
+frames = []
+
+for x in range(-600, CARD_WIDTH + 600, 50):
+
+    frame = background.copy()
+
+    shine = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shine)
+
+    sd.polygon(
+        [
+            (x, 0),
+            (x + 220, 0),
+            (x - 220, CARD_HEIGHT),
+            (x - 440, CARD_HEIGHT),
+        ],
+        fill=(255, 255, 255, 90)
     )
 
-    output = os.path.join(
-        OUTPUT_FOLDER,
-        f"{member.id}.png"
-    )
+    shine = shine.filter(ImageFilter.GaussianBlur(60))
 
-    background.save(
-        output,
-        quality=100
-    )
+    frame = Image.alpha_composite(frame, shine)
 
-    return output
+    frames.append(frame)
+
+frames[0].save(
+    output,
+    save_all=True,
+    append_images=frames[1:],
+    duration=40,
+    loop=0,
+    disposal=2
+)
+
+return output
