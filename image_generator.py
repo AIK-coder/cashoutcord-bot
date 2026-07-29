@@ -11,21 +11,16 @@ from config import *
 # ==========================================
 
 def get_theme_colour():
-
     colours = colorgram.extract(BACKGROUND, 8)
 
     best = colours[0].rgb
-
     highest = 0
 
     for c in colours:
-
         rgb = c.rgb
-
         score = rgb.r + rgb.b
 
         if score > highest:
-
             highest = score
             best = rgb
 
@@ -33,7 +28,7 @@ def get_theme_colour():
 
 
 # ==========================================
-# AVATAR DOWNLOAD
+# DOWNLOAD AVATAR
 # ==========================================
 
 async def download_avatar(member):
@@ -41,106 +36,26 @@ async def download_avatar(member):
     url = member.display_avatar.replace(size=512).url
 
     async with aiohttp.ClientSession() as session:
-
         async with session.get(url) as response:
-
             data = await response.read()
 
-    return Image.open(BytesIO(data)).convert("RGBA")
+    avatar = Image.open(BytesIO(data)).convert("RGBA")
+    return avatar
 
 
 # ==========================================
-# CIRCLE CROP
+# TEXT WITH SHADOW
 # ==========================================
 
-def circle_crop(image):
+def draw_shadow_text(draw, pos, text, font, colour):
 
-    image = image.resize((AVATAR_SIZE, AVATAR_SIZE))
-
-    mask = Image.new("L", (AVATAR_SIZE, AVATAR_SIZE), 0)
-
-    draw = ImageDraw.Draw(mask)
-
-    draw.ellipse((0, 0, AVATAR_SIZE, AVATAR_SIZE), fill=255)
-
-    output = Image.new("RGBA", (AVATAR_SIZE, AVATAR_SIZE))
-
-    output.paste(image, (0, 0), mask)
-
-    return output
-
-
-# ==========================================
-# GLOW
-# ==========================================
-
-def draw_glow(canvas, centre, colour):
-
-    glow = Image.new("RGBA", canvas.size, (0,0,0,0))
-
-    draw = ImageDraw.Draw(glow)
-
-    radius = RING_SIZE // 2
-
-    for i in range(GLOW_STRENGTH):
-
-        alpha = max(0, 170 - i * 3)
-
-        draw.ellipse(
-
-            (
-                centre[0]-radius-i,
-                centre[1]-radius-i,
-                centre[0]+radius+i,
-                centre[1]+radius+i,
-            ),
-
-            outline=colour + (alpha,),
-            width=8,
-        )
-
-    glow = glow.filter(ImageFilter.GaussianBlur(16))
-
-    canvas.alpha_composite(glow)
-
-
-# ==========================================
-# RING
-# ==========================================
-
-def draw_ring(canvas, centre, colour):
-
-    draw = ImageDraw.Draw(canvas)
-
-    radius = RING_SIZE // 2
-
-    draw.ellipse(
-
-        (
-            centre[0]-radius,
-            centre[1]-radius,
-            centre[0]+radius,
-            centre[1]+radius,
-        ),
-
-        outline=colour,
-        width=RING_THICKNESS,
-    )
-
-
-# ==========================================
-# SHADOW TEXT
-# ==========================================
-
-def draw_shadow_text(draw, position, text, font, fill, shadow=(0, 0, 0), offset=4):
-
-    x, y = position
+    x, y = pos
 
     draw.text(
-        (x + offset, y + offset),
+        (x + 4, y + 4),
         text,
         font=font,
-        fill=shadow,
+        fill=(0, 0, 0, 170),
         anchor="mm"
     )
 
@@ -148,51 +63,124 @@ def draw_shadow_text(draw, position, text, font, fill, shadow=(0, 0, 0), offset=
         (x, y),
         text,
         font=font,
-        fill=fill,
+        fill=colour,
         anchor="mm"
     )
 
 
 # ==========================================
-# WELCOME CARD
+# CREATE CARD
 # ==========================================
 
 async def create_welcome_card(member):
 
-    background = Image.open(BACKGROUND).convert("RGBA")
+    accent = get_theme_colour()
 
+    background = Image.open(BACKGROUND).convert("RGBA")
     background = background.resize((CARD_WIDTH, CARD_HEIGHT))
 
-    theme = get_theme_colour()
+    draw = ImageDraw.Draw(background)
+
+    # ==========================================
+    # PROFILE PICTURE
+    # ==========================================
 
     avatar = await download_avatar(member)
 
-    avatar = circle_crop(avatar)
+    avatar = ImageOps.fit(
+        avatar,
+        (AVATAR_SIZE, AVATAR_SIZE),
+        centering=(0.5, 0.5)
+    )
+
+    mask = Image.new("L", (AVATAR_SIZE, AVATAR_SIZE), 0)
+
+    ImageDraw.Draw(mask).ellipse(
+        (0, 0, AVATAR_SIZE, AVATAR_SIZE),
+        fill=255
+    )
+
+    avatar.putalpha(mask)
 
     centre_x = CARD_WIDTH // 2
-    centre_y = 310
+    centre_y = 370
 
-    draw_glow(
-        background,
-        (centre_x, centre_y),
-        theme
+    ring = Image.new(
+        "RGBA",
+        (RING_SIZE, RING_SIZE),
+        (0, 0, 0, 0)
     )
 
-    draw_ring(
-        background,
-        (centre_x, centre_y),
-        theme
+    rd = ImageDraw.Draw(ring)
+
+    rd.ellipse(
+        (
+            RING_THICKNESS,
+            RING_THICKNESS,
+            RING_SIZE - RING_THICKNESS,
+            RING_SIZE - RING_THICKNESS
+        ),
+        outline=accent,
+        width=RING_THICKNESS
     )
 
-    avatar_x = centre_x - AVATAR_SIZE // 2
-    avatar_y = centre_y - AVATAR_SIZE // 2
+    glow = ring.filter(
+        ImageFilter.GaussianBlur(GLOW_STRENGTH)
+    )
+
+    background.alpha_composite(
+        glow,
+        (
+            centre_x - RING_SIZE // 2,
+            centre_y - RING_SIZE // 2
+        )
+    )
+
+    background.alpha_composite(
+        ring,
+        (
+            centre_x - RING_SIZE // 2,
+            centre_y - RING_SIZE // 2
+        )
+    )
 
     background.alpha_composite(
         avatar,
-        (avatar_x, avatar_y)
+        (
+            centre_x - AVATAR_SIZE // 2,
+            centre_y - AVATAR_SIZE // 2
+        )
     )
 
-    draw = ImageDraw.Draw(background)
+    # ==========================================
+    # DARK GLASS PANEL
+    # ==========================================
+
+    glass = Image.new(
+        "RGBA",
+        background.size,
+        (0, 0, 0, 0)
+    )
+
+    gd = ImageDraw.Draw(glass)
+
+    gd.rounded_rectangle(
+        (
+            250,
+            620,
+            CARD_WIDTH - 250,
+            CARD_HEIGHT - 120
+        ),
+        radius=40,
+        fill=(0, 0, 0, 120)
+    )
+
+    background.alpha_composite(glass)
+
+
+    # ==========================================
+    # FONTS
+    # ==========================================
 
     title_font = ImageFont.truetype(
         TITLE_FONT,
@@ -201,24 +189,27 @@ async def create_welcome_card(member):
 
     username_font = ImageFont.truetype(
         TEXT_FONT,
-        42
+        56
     )
 
     member_font = ImageFont.truetype(
         TEXT_FONT,
-        30
+        34
     )
 
+    # ==========================================
+    # TEXT
+    # ==========================================
 
     username = member.display_name
 
-    heading = "JUST JOINED THE SERVER"
+    heading = "WELCOME TO CASHOUT RP"
 
     member_count = f"Member #{member.guild.member_count}"
 
     draw_shadow_text(
         draw,
-        (CARD_WIDTH // 2, 690),
+        (CARD_WIDTH // 2, 705),
         heading,
         title_font,
         TEXT_COLOUR
@@ -229,7 +220,7 @@ async def create_welcome_card(member):
         (CARD_WIDTH // 2, 785),
         username,
         username_font,
-        (235, 235, 235)
+        (245, 245, 245)
     )
 
     draw_shadow_text(
@@ -240,52 +231,54 @@ async def create_welcome_card(member):
         SUBTEXT_COLOUR
     )
 
-    # Small highlight ring
+    # ==========================================
+    # HIGHLIGHT RING
+    # ==========================================
 
-    highlight = Image.new("RGBA", background.size, (0, 0, 0, 0))
+    highlight = Image.new(
+        "RGBA",
+        background.size,
+        (0, 0, 0, 0)
+    )
 
     hd = ImageDraw.Draw(highlight)
 
     r = RING_SIZE // 2
 
     hd.ellipse(
-
         (
-
             centre_x - r,
-
             centre_y - r,
-
             centre_x + r,
-
-            centre_y + r,
-
+            centre_y + r
         ),
-
-        outline=(255, 255, 255, 130),
-
-        width=4
-
+        outline=(255, 255, 255, 120),
+        width=3
     )
 
-    highlight = highlight.filter(ImageFilter.GaussianBlur(2))
+    highlight = highlight.filter(
+        ImageFilter.GaussianBlur(2)
+    )
 
     background.alpha_composite(highlight)
 
-    # Sharpen slightly
+    # ==========================================
+    # SAVE IMAGE
+    # ==========================================
 
-    background = background.filter(ImageFilter.SHARPEN)
-
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-    output = os.path.join(
-
+    os.makedirs(
         OUTPUT_FOLDER,
-
-        f"{member.id}.png"
-
+        exist_ok=True
     )
 
-    background.save(output, quality=100)
+    output = os.path.join(
+        OUTPUT_FOLDER,
+        f"{member.id}.png"
+    )
+
+    background.save(
+        output,
+        quality=100
+    )
 
     return output
