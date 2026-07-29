@@ -4,7 +4,7 @@
 
 import os
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("TOKEN") or "PASTE_YOUR_NEW_BOT_TOKEN_HERE"
 
 WELCOME_CHANNEL_ID = 1531767452713619717
 

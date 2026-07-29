@@ -78,7 +78,10 @@ async def create_welcome_card(member):
     accent = get_theme_colour()
 
     background = Image.open(BACKGROUND).convert("RGBA")
-    background = background.resize((CARD_WIDTH, CARD_HEIGHT))
+    background = background.resize(
+    (CARD_WIDTH, CARD_HEIGHT),
+    Image.Resampling.LANCZOS
+)
 
     draw = ImageDraw.Draw(background)
 
@@ -185,17 +188,17 @@ async def create_welcome_card(member):
 
     title_font = ImageFont.truetype(
         TITLE_FONT,
-        82
+        96
     )
 
     username_font = ImageFont.truetype(
         TEXT_FONT,
-        56
+        55
     )
 
     member_font = ImageFont.truetype(
         TEXT_FONT,
-        34
+        42
     )
 
     # ==========================================
@@ -263,49 +266,24 @@ async def create_welcome_card(member):
 
     background.alpha_composite(highlight)
 
-# ==========================================
-# SAVE IMAGE
-# ==========================================
 
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    # ==========================================
+    # SAVE IMAGE
+    # ==========================================
 
-output = os.path.join(
-    OUTPUT_FOLDER,
-    f"{member.id}.gif"
-)
-
-frames = []
-
-for x in range(-600, CARD_WIDTH + 600, 50):
-
-    frame = background.copy()
-
-    shine = Image.new("RGBA", frame.size, (0, 0, 0, 0))
-    sd = ImageDraw.Draw(shine)
-
-    sd.polygon(
-        [
-            (x, 0),
-            (x + 220, 0),
-            (x - 220, CARD_HEIGHT),
-            (x - 440, CARD_HEIGHT),
-        ],
-        fill=(255, 255, 255, 90)
+    os.makedirs(
+        OUTPUT_FOLDER,
+        exist_ok=True
     )
 
-    shine = shine.filter(ImageFilter.GaussianBlur(60))
+    output = os.path.join(
+        OUTPUT_FOLDER,
+        f"{member.id}.png"
+    )
 
-    frame = Image.alpha_composite(frame, shine)
+    background.save(
+        output,
+        quality=100
+    )
 
-    frames.append(frame)
-
-frames[0].save(
-    output,
-    save_all=True,
-    append_images=frames[1:],
-    duration=40,
-    loop=0,
-    disposal=2
-)
-
-return output
+    return output
